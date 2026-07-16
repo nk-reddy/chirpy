@@ -7,20 +7,21 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nk-reddy/chirpy/internal/auth"
+	"github.com/nk-reddy/chirpy/internal/database"
 )
 
 type userRequestAuth struct {
 	Password string `json:"password"`
 	Email    string `json:"email"`
-	Expires  int    `json:"expires_in_seconds"`
 }
 
 type userResponseAuth struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
-	Token     string    `json:"token"`
+	ID           uuid.UUID `json:"id"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	Email        string    `json:"email"`
+	Token        string    `json:"token"`
+	RefreshToken string    `json:"refresh_token"`
 }
 
 func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
@@ -43,23 +44,26 @@ func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expiresIn := time.Hour
-	if params.Expires > 0 && params.Expires < 3600 {
-		expiresIn = time.Duration(params.Expires) * time.Second
-	}
-
-	token, err := auth.MakeJWT(user.ID, cfg.jwtSK, expiresIn)
+	token, err := auth.MakeJWT(user.ID, cfg.jwtSK, time.Hour)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
+	// make the refresh token
+	rTokenStr := auth.MakeRefreshToken()
+	rToken, err := cfg.db.CreateRefreshToken(r.Context(), database.CreateRefreshTokenParams{
+		Token:  rTokenStr,
+		UserID: user.ID,
+	})
+
 	w.Header().Add("Content-Type", "application/json; charset=utf-8")
 	respondWithJSON(w, http.StatusOK, userResponseAuth{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
-		Token:     token,
+		ID:           user.ID,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
+		Email:        user.Email,
+		Token:        token,
+		RefreshToken: rToken.Token,
 	})
 }
