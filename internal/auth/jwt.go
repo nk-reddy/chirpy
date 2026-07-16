@@ -1,6 +1,9 @@
 package auth
 
 import (
+	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -40,4 +43,21 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 		return uuid.Nil, err
 	}
 	return uuid.UUID(userUUID), nil
+}
+
+func GetBearerToken(headers http.Header) (string, error) {
+	auth := headers.Get("Authorization")
+	if auth == "" {
+		return "", fmt.Errorf("authorization doesn't exist")
+	}
+	rawToken, found := strings.CutPrefix(auth, "Bearer ")
+	if !found || rawToken == "" {
+		return "", fmt.Errorf("authorization doesn't exist")
+	}
+
+	cleanedToken := strings.TrimSpace(rawToken)
+	if cleanedToken == "" {
+		return "", fmt.Errorf("authorization doesn't exist")
+	}
+	return cleanedToken, nil
 }
